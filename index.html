@@ -604,11 +604,14 @@
   .tblock.q2 { border-left-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
   .tblock.q3 { border-left-color: #D9730D; background: #D9730D; color: #fff; }
   .tblock.q4 { border-left-color: var(--border-strong); background: #5f5f59; color: #fff; }
+  /* 生活（睡眠・食事・風呂など）は4領域の外。色を付けず、枠だけの中立の見た目にする */
+  .tblock.q0 { border-left-color: var(--plan-border); background: var(--plan-bg); color: var(--text-secondary); box-shadow: inset 0 0 0 1px var(--plan-border); }
   .tblock.is-done { opacity: 1; }
   .tblock.is-done.q1 { background: color-mix(in srgb, #DE5A54 16%, var(--plan-bg)); color: var(--text-secondary); }
   .tblock.is-done.q2 { background: color-mix(in srgb, var(--accent) 14%, var(--plan-bg)); color: var(--text-secondary); }
   .tblock.is-done.q3 { background: color-mix(in srgb, #D9730D 16%, var(--plan-bg)); color: var(--text-secondary); }
   .tblock.is-done.q4 { background: color-mix(in srgb, var(--border-strong) 20%, var(--plan-bg)); color: var(--text-secondary); }
+  .tblock.is-done.q0 { background: var(--bg-subtle); color: var(--text-tertiary); box-shadow: inset 0 0 0 1px var(--border); }
   /* バッジは、くっきり背景の上では白、実施済みの薄い背景の上では領域色に出し分ける */
   .tblock.q1 .qbadge { color: #fff; }
   .tblock.q2 .qbadge { color: var(--accent-fg); }
@@ -625,6 +628,8 @@
   .rn.q2::before { background: var(--accent); }
   .rn.q3::before { background: #D9730D; }
   .rn.q4::before { background: var(--border-strong); }
+  .rn.q0::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 1px; background: transparent; box-shadow: inset 0 0 0 1px var(--plan-border); }
+  .qrows .rn.q0 { margin-top: 6px; } .qrows .rn.q0 ~ span { margin-top: 6px; }
 
   .quad-summary {
     background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--radius-lg);
@@ -1151,6 +1156,7 @@
       <li><b>第Ⅳ（どちらでもない）</b>：だらだらスマホ・過ごしすぎの娯楽。最小限に。</li>
     </ol>
     <p>日ビューの右側に、その日の領域別の時間配分（帯グラフ）が出ます。<b>前日にここで翌日を組む</b>（ミッション：前日中に翌日の詳細な予定を決める）。</p>
+    <p>睡眠・食事・風呂などは、枠の<b>生活</b>にチェックすると配分から外れ、合計だけ別に表示されます。</p>
 
     <h3>日記とふりかえり</h3>
     <p>上部タブ「日記」。日付を選び、気分（😥〜😆）と本文を書く（自動保存）。過去に Notion で書いた日記もすべて読み込み済みで、下の一覧から検索・閲覧できます。「1年前の今日」に記録があれば表示されます。</p>
@@ -1249,7 +1255,9 @@
     var n = parseInt(h.slice(1), 16);
     return "rgba(" + (n >> 16 & 255) + "," + (n >> 8 & 255) + "," + (n & 255) + "," + a + ")";
   }
+  // 0 は「生活」（睡眠・食事・風呂など）。4領域の配分には数えず、合計だけ別に出す
   var QUAD = {
+    0: ["生活", "配分の対象外"],
     1: ["Ⅰ", "緊急 × 重要", "締切・トラブル・危機対応"],
     2: ["Ⅱ", "重要・緊急でない", "計画・準備・学び・運動。ここを増やす"],
     3: ["Ⅲ", "緊急・重要でない", "割り込み・雑事。断る／任せる"],
@@ -1368,6 +1376,7 @@
       ],
       blocks: [
         { id: uid(), date: iso(0), start: "07:00", end: "07:30", figId: "", title: "朝の片付け", done: true, important: true, urgent: false },
+        { id: uid(), date: iso(0), start: "07:30", end: "08:00", figId: "", title: "朝食", done: true, important: true, urgent: false, life: true },
         { id: uid(), date: iso(0), start: "10:00", end: "11:00", figId: "fh1", title: "風呂掃除", done: false, important: true, urgent: false },
         { id: uid(), date: iso(0), start: "11:00", end: "12:00", figId: "fh3", title: "買い出し", done: false, important: true, urgent: true },
         { id: uid(), date: iso(0), start: "16:00", end: "16:30", figId: "", title: "電話の折り返し", done: false, important: false, urgent: true },
@@ -1402,7 +1411,7 @@
       return {
         id: b.id, date: b.date, start: b.start, end: b.end,
         figId: b.figId || "", title: b.title || "", done: !!b.done,
-        important: b.important !== false, urgent: !!b.urgent, taskId: b.taskId || ""
+        important: b.important !== false, urgent: !!b.urgent, life: !!b.life, taskId: b.taskId || ""
       };
     });
     if (!Array.isArray(d.tasks)) d.tasks = [];
@@ -1874,13 +1883,16 @@
 
   /* ---------- 7 Habits quadrant helpers ---------- */
   function quadOf(b) {
+    if (b.life) return 0;
     var imp = b.important !== false, urg = !!b.urgent;
     return imp ? (urg ? 1 : 2) : (urg ? 3 : 4);
   }
   function dayQuadMinutes(date) {
-    var q = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    var q = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, sleep: 0 };
     blocksForDate(date).forEach(function (b) {
-      q[quadOf(b)] += Math.max(toMin(b.end) - toMin(b.start), 0);
+      var m = Math.max(toMin(b.end) - toMin(b.start), 0);
+      q[quadOf(b)] += m;
+      if (b.life && (b.title || "").indexOf("睡眠") > -1) q.sleep += m;
     });
     return q;
   }
@@ -2441,9 +2453,10 @@
       '<span style="color:var(--text-tertiary)">–</span>' +
       '<input type="time" id="be-end" step="900" value="' + esc(b.end) + '" /></div>' +
       '<div class="be-quad">' +
-      '<label class="be-check"><input type="checkbox" id="be-important"' + (b.important !== false ? " checked" : "") + ' /> 重要</label>' +
-      '<label class="be-check"><input type="checkbox" id="be-urgent"' + (b.urgent ? " checked" : "") + ' /> 緊急</label>' +
-      '<span class="qnow">→ 第<b>' + QUAD[q][0] + '</b>領域（' + esc(QUAD[q][1]) + '）</span></div>' +
+      '<label class="be-check"><input type="checkbox" id="be-important"' + (b.important !== false ? " checked" : "") + (b.life ? " disabled" : "") + ' /> 重要</label>' +
+      '<label class="be-check"><input type="checkbox" id="be-urgent"' + (b.urgent ? " checked" : "") + (b.life ? " disabled" : "") + ' /> 緊急</label>' +
+      '<label class="be-check"><input type="checkbox" id="be-life"' + (b.life ? " checked" : "") + ' /> 生活</label>' +
+      '<span class="qnow">→ ' + (q ? '第<b>' + QUAD[q][0] + '</b>領域' : '<b>' + QUAD[0][0] + '</b>') + '（' + esc(QUAD[q][1]) + '）</span></div>' +
       '<label class="be-check"><input type="checkbox" id="be-done"' + (b.done ? " checked" : "") + ' /> 実施済み</label>' +
       '<div class="be-actions"><button class="btn danger" id="be-del">この枠を削除</button>' +
       '<button class="btn primary te-done" id="be-finish">完了</button></div>' +
@@ -2470,7 +2483,9 @@
     var stMin = habitFor(date).st;
     return '<div class="quad-summary"><h3>今日の時間配分（7つの習慣）</h3>' +
       (tot ? '<div class="qbar">' + seg + '</div>' : '<p class="quad-note">枠を置くと領域ごとの配分が出ます。</p>') +
-      '<div class="qrows">' + rows + '</div>' +
+      '<div class="qrows">' + rows +
+      (q[0] ? '<span class="rn q0">' + QUAD[0][0] + '</span><span class="qd">' + (q.sleep ? "うち睡眠 " + fmtDur(q.sleep) : esc(QUAD[0][1])) + '</span><span class="qm">' + fmtDur(q[0]) + '</span>' : "") +
+      '</div>' +
       (stMin ? '<p class="quad-note">今日のスクリーンタイム：<b>' + fmtDur(stMin) + '</b></p>' : '') + '</div>';
   }
   function taskCellsForDate(date) {
@@ -3487,6 +3502,8 @@
     } else if (t.id === "be-important" || t.id === "be-urgent") {
       b.important = $("#be-important").checked;
       b.urgent = $("#be-urgent").checked;
+    } else if (t.id === "be-life") {
+      b.life = t.checked;
     } else return;
     save(); renderDayView(); renderLog();
   });
